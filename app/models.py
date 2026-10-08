@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
+
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
+
+from app.config import get_settings
+from app.database import Base
+
+
+class EmbeddingType(TypeDecorator):
+    """Native pgvector in production, JSON vectors for SQLite tests."""
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(Vector(get_settings().embedding_dim))
+        return dialect.type_descriptor(JSON())
+
+
+def now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Document(Base):
+    __tablename__ = "documents"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    filename: Mapped[str] = mapped_column(String(300))
+    storage_path: Mapped[str] = mapped_column(String(700))
+    page_count: Mapped[int] = mapped_column(default=0)
+    status: Mapped[str] = mapped_column(String(30), default="uploaded", index=True)
+    progress: Mapped[int] = mapped_column(default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Page(Base):
+    __tablename__ = "pages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    page_no: Mapped[int]
+    text: Mapped[str] = mapped_column(Text)
+    is_ocr: Mapped[bool] = mapped_column(Boolean, default=False)
+    __table_args__ = (UniqueConstraint("document_id", "page_no"),)
+
+
+class Chunk(Base):
+    __tablename__ = "chunks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    page_start: Mapped[int]
+    page_end: Mapped[int]
+    section: Mapped[str | None] = mapped_column(String(300))
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float] | None] = mapped_column(EmbeddingType())
+
+
+class Concept(Base):
+    __tablename__ = "concepts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(250))
+    summary: Mapped[str] = mapped_column(Text)
+    chapter: Mapped[str | None] = mapped_column(String(250))
+    order_idx: Mapped[int] = mapped_column(default=0)
+
+
+class Question(Base):
+    __tablename__ = "questions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    concept_id: Mapped[int] = mapped_column(ForeignKey("concepts.id", ondelete="CASCADE"), index=True)
+    type: Mapped[str] = mapped_column(String(20), default="mcq")
+    stem: Mapped[str] = mapped_column(Text)
+    options: Mapped[list[str] | None] = mapped_column(JSON)
+    answer: Mapped[str] = mapped_column(Text)
+    explanation: Mapped[str] = mapped_column(Text)
+    page: Mapped[int]
+    source_quote: Mapped[str] = mapped_column(Text)
+    chunk_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    difficulty: Mapped[str] = mapped_column(String(20), default="medium")
+    flag_count: Mapped[int] = mapped_column(default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Attempt(Base):
+    __tablename__ = "attempts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    mode: Mapped[str] = mapped_column(String(20), default="practice")
+    document_ids: Mapped[list[int]] = mapped_column(JSON)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    score: Mapped[float | None]
+
+
+class AttemptAnswer(Base):
+    __tablename__ = "attempt_answers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attempt_id: Mapped[int] = mapped_column(ForeignKey("attempts.id", ondelete="CASCADE"), index=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), index=True)
+    response: Mapped[str] = mapped_column(Text)
+    correct: Mapped[bool]
+    marks: Mapped[float]
+    max_marks: Mapped[float] = mapped_column(default=1)
+    feedback: Mapped[str] = mapped_column(Text)
+    time_taken_s: Mapped[int | None]
+    __table_args__ = (UniqueConstraint("attempt_id", "question_id"),)
+
+
+class Mastery(Base):
+    __tablename__ = "mastery"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    concept_id: Mapped[int] = mapped_column(ForeignKey("concepts.id", ondelete="CASCADE"), primary_key=True)
+    score: Mapped[float] = mapped_column(Float, default=0.3)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts_count: Mapped[int] = mapped_column(default=0)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
