@@ -1,6 +1,8 @@
-# PrepMate
+# PrepMate · Teacher Copilot
 
 PrepMate turns textbook PDFs into page-grounded study material. Students can upload a chapter, practise generated questions, ask questions about the text, and track which concepts need more work.
+
+The teacher workspace adds a multi-tenant educator copilot. Teachers can generate cited assessments, lesson plans, notes, slide outlines, worksheets, and course plans from uploaded PDFs. Every generation records explicit knowledge, specialist, and review steps; outputs remain drafts until submitted and approved by an HOD or institution admin.
 
 ## Requirements
 
@@ -173,6 +175,12 @@ Change `JWT_SECRET` before deployment.
 - `POST /questions/{id}/flag`
 - `POST /chat`
 - `GET /dashboard`
+- `POST/GET /subjects`, `POST/GET /courses`, `POST /courses/{id}/units`, `POST /units/{id}/outcomes`
+- `POST /artifacts/generate`, `GET/PATCH /artifacts/{id}`
+- `POST /artifacts/{id}/review`, `/submit`, and `/approve`
+- `GET /runs/{id}` for the persisted workflow trace
+
+Open **Teacher studio** in the web app after uploading and indexing a PDF. New registrations receive an isolated institution tenant and admin membership; generated artifacts, courses, subjects, reviews, and approvals are tenant-scoped.
 
 Interactive request and response details are available at http://localhost:8000/docs while the backend is running.
 

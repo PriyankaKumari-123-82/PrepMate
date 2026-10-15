@@ -31,14 +31,34 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    first_name: Mapped[str | None] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(20), default="teacher")
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id"),)
 
 
 class Document(Base):
     __tablename__ = "documents"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[int | None] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id", ondelete="SET NULL"), index=True)
     title: Mapped[str] = mapped_column(String(300))
     filename: Mapped[str] = mapped_column(String(300))
     storage_path: Mapped[str] = mapped_column(String(700))
@@ -140,3 +160,130 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text)
     citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Subject(Base):
+    __tablename__ = "subjects"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(150))
+    profile: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    __table_args__ = (UniqueConstraint("tenant_id", "name"),)
+
+
+class Course(Base):
+    __tablename__ = "courses"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id", ondelete="CASCADE"), index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(250))
+    term: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(30), default="draft")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Unit(Base):
+    __tablename__ = "units"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), index=True)
+    order_idx: Mapped[int] = mapped_column(default=0)
+    title: Mapped[str] = mapped_column(String(250))
+
+
+class LearningOutcome(Base):
+    __tablename__ = "learning_outcomes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    unit_id: Mapped[int] = mapped_column(ForeignKey("units.id", ondelete="CASCADE"), index=True)
+    code: Mapped[str] = mapped_column(String(50))
+    text: Mapped[str] = mapped_column(Text)
+    bloom_level: Mapped[str] = mapped_column(String(30), default="understand")
+    __table_args__ = (UniqueConstraint("unit_id", "code"),)
+
+
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    workflow: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="running", index=True)
+    input: Mapped[dict[str, Any]] = mapped_column(JSON)
+    output: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AgentStep(Base):
+    __tablename__ = "agent_steps"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True)
+    agent: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(30), default="completed")
+    input: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    output: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Artifact(Base):
+    __tablename__ = "artifacts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"), index=True)
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id", ondelete="SET NULL"))
+    artifact_type: Mapped[str] = mapped_column(String(40), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    version: Mapped[int] = mapped_column(default=1)
+    body: Mapped[dict[str, Any]] = mapped_column(JSON)
+    sources: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    warnings: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id", ondelete="CASCADE"), index=True)
+    reviewer_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    verdict: Mapped[str] = mapped_column(String(20))
+    report: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Approval(Base):
+    __tablename__ = "approvals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id", ondelete="CASCADE"), index=True)
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    decision: Mapped[str] = mapped_column(String(30), default="pending")
+    comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class TenantModelSettings(Base):
+    __tablename__ = "tenant_model_settings"
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    generation_provider: Mapped[str] = mapped_column(String(40), default="openai")
+    generation_model: Mapped[str] = mapped_column(String(150), default="gpt-4o-mini")
+    embedding_provider: Mapped[str] = mapped_column(String(40), default="openai")
+    embedding_model: Mapped[str] = mapped_column(String(150), default="text-embedding-3-small")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class ProviderCredential(Base):
+    __tablename__ = "provider_credentials"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    label: Mapped[str] = mapped_column(String(100))
+    encrypted_api_key: Mapped[str] = mapped_column(Text)
+    key_suffix: Mapped[str] = mapped_column(String(8))
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

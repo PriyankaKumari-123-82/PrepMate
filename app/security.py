@@ -3,12 +3,13 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import User
+from app.models import Membership, User
 
 pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2 = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -40,3 +41,16 @@ def current_user(token: str = Depends(oauth2), db: Session = Depends(get_db)) ->
     if not user:
         raise HTTPException(401, "User no longer exists")
     return user
+
+
+def current_membership(user: User = Depends(current_user), db: Session = Depends(get_db)) -> Membership:
+    membership = db.scalar(select(Membership).where(Membership.user_id == user.id).order_by(Membership.id))
+    if not membership:
+        raise HTTPException(403, "User does not belong to an institution")
+    return membership
+
+
+def require_teacher(membership: Membership = Depends(current_membership)) -> Membership:
+    if membership.role not in {"teacher", "hod", "admin"}:
+        raise HTTPException(403, "Teacher account required")
+    return membership
