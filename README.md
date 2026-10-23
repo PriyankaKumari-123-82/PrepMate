@@ -165,6 +165,17 @@ The **Progress** page shows overall accuracy, total answers, up to five weakest 
 
 Change `JWT_SECRET` before deployment.
 
+## Free-tier deployment (Cloudflare Pages + Render + Supabase)
+
+This split deployment keeps the React site static, runs FastAPI as a Docker web service, uses Supabase PostgreSQL with pgvector, and stores uploaded PDFs in a private Supabase Storage bucket. Free-tier quotas, sleeping, and availability can change; this setup is intended for a small demo, not production workloads.
+
+1. Create a Supabase project. Enable the `vector` extension (the first Alembic migration also attempts to enable it), create a **private** Storage bucket named `prepmate-pdfs`, and set its upload limit to at least 30 MB. Use the project's database connection string in `DATABASE_URL`; the connection URL must use the `postgresql+psycopg://` SQLAlchemy driver form. URL-encode reserved characters in the password (for example, `@` as `%40`); the app also normalizes raw `@` characters for compatibility. Keep the service-role key private and use it only as a Render secret.
+2. Deploy the backend to Render from this repository using the included `render.yaml` Blueprint. Set `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `CORS_ORIGINS` in the Render service's environment. Set `CORS_ORIGINS` to the exact Cloudflare Pages origin after creating the site (for example, `https://your-site.pages.dev`). The blueprint selects Supabase Storage; local development continues to use the `local` backend.
+3. Create a Cloudflare Pages project connected to the repository. Set the root directory to `web`, the build command to `npm run build`, and the output directory to `dist`. Add the build-time environment variable `VITE_API_URL` with the Render service origin, without a trailing slash or `/api` suffix (for example, `https://your-api.onrender.com`).
+4. After the first Render deploy, verify `https://your-api.onrender.com/health`, then set the Pages origin in Render's `CORS_ORIGINS` and redeploy. Register a test account, upload a PDF, and verify that it appears in the private Supabase bucket and can be opened through the app.
+
+`SUPABASE_SERVICE_ROLE_KEY` is a backend secret and must never be configured as a `VITE_*` variable or exposed to the browser. Free Render instances may sleep; the initial API request can be slow, and in-process PDF ingestion is not durable if an instance restarts. The free Supabase database/storage capacity is limited, so monitor its current dashboard quotas.
+
 ## Main API routes
 
 - `POST /auth/register`, `POST /auth/login`

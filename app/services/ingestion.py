@@ -8,6 +8,7 @@ from app.models import Chunk, Document, Page
 from app.services.chunking import chunk_pages
 from app.services.generation import generate_bank
 from app.services.llm import llm
+from app.services.storage import read_pdf
 
 
 async def ingest_document(document_id: int) -> None:
@@ -19,7 +20,7 @@ async def ingest_document(document_id: int) -> None:
         try:
             document.status, document.progress = "extracting", 10
             db.commit()
-            pdf = pymupdf.open(document.storage_path)
+            pdf = pymupdf.open(stream=read_pdf(document.storage_path), filetype="pdf")
             if len(pdf) > get_settings().max_pdf_pages:
                 raise ValueError(f"PDF exceeds {get_settings().max_pdf_pages} page limit")
             extracted: list[tuple[int, str]] = []

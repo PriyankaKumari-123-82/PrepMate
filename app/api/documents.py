@@ -1,8 +1,8 @@
 from pathlib import Path
-from uuid import uuid4
+from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.models import Chunk, Concept, Document, Mastery, Membership, User
 from app.schemas import ChunkOut, ConceptOut, DocumentOut
 from app.security import current_membership, current_user
 from app.services.ingestion import ingest_document
+from app.services.storage import delete_pdf, read_pdf, store_pdf
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -39,17 +40,19 @@ async def upload_document(
         raise HTTPException(413, "PDF is too large")
     if not data.startswith(b"%PDF"):
         raise HTTPException(400, "File is not a valid PDF")
-    directory = get_settings().upload_dir / str(user.id)
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{uuid4().hex}.pdf"
-    path.write_bytes(data)
+    storage_path = store_pdf(user.id, data)
     document = Document(
         user_id=user.id, tenant_id=membership.tenant_id, title=(title or Path(file.filename or "Textbook").stem)[:300],
-        filename=(file.filename or "textbook.pdf")[:300], storage_path=str(path),
+        filename=(file.filename or "textbook.pdf")[:300], storage_path=storage_path,
     )
-    db.add(document)
-    db.commit()
-    db.refresh(document)
+    try:
+        db.add(document)
+        db.commit()
+        db.refresh(document)
+    except Exception:
+        db.rollback()
+        delete_pdf(storage_path)
+        raise
     background.add_task(ingest_document, document.id)
     return document
 
@@ -72,19 +75,22 @@ def document_status(document_id: int, user: User = Depends(current_user), db: Se
 @router.get("/{document_id}/file")
 def document_file(document_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     document = owned_document(db, document_id, user.id)
+    if document.storage_path.startswith("supabase://"):
+        return Response(
+            content=read_pdf(document.storage_path),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(document.filename)}"},
+        )
     return FileResponse(document.storage_path, media_type="application/pdf", filename=document.filename)
 
 
 @router.delete("/{document_id}", status_code=204)
 def delete_document(document_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     document = owned_document(db, document_id, user.id)
-    storage_path = Path(document.storage_path).resolve()
-    upload_root = get_settings().upload_dir.resolve()
+    storage_path = document.storage_path
     db.delete(document)
     db.commit()
-    # Only unlink files within the configured upload directory.
-    if storage_path.is_relative_to(upload_root) and storage_path.is_file():
-        storage_path.unlink()
+    delete_pdf(storage_path)
 
 
 @router.get("/{document_id}/concepts", response_model=list[ConceptOut])
