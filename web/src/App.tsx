@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, BarChart3, BookOpen, Building2, CheckCircle2, ChevronDown, Download, Eye, FileText, Globe2, KeyRound, Layers, Library, LogOut, Menu, MessageCircle, Send, Settings, ShieldCheck, Sparkles, Trash2, Upload, UserRound, Wand2, XCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3, BookOpen, Building2, CheckCircle2, ChevronDown, Download, Eye, FileText, Globe2, KeyRound, Layers, Library, LogOut, Menu, MessageCircle, Send, Settings, ShieldCheck, Sparkles, Target, Trash2, Upload, UserRound, Wand2, XCircle } from 'lucide-react'
 import { api, ApiError, Artifact, Chunk, Citation, Concept, Document, Profile, Question } from './api'
+import CareerView from './CareerView'
 
-type View = 'home'|'library'|'document'|'practice'|'progress'|'chat'|'copilot'|'settings'
+type View = 'home'|'library'|'document'|'practice'|'progress'|'chat'|'career'|'copilot'|'settings'
 type Feedback = {correct:boolean;marks:number;answer:string;explanation:string;source_quote:string;page:number}
 type Language = 'en'|'hi'|'ar'
 
@@ -47,7 +48,7 @@ function Shell({view,setView,profile,language,setLanguage,children}:{view:View;s
   const teacher=['teacher','hod','admin'].includes(role)
   const nav=teacher
     ? ([['home','Dashboard',BarChart3],['library','Knowledge library',Library],['copilot','Teacher studio',Wand2],['chat','Ask sources',MessageCircle]] as const)
-    : ([['library','My library',Library],['progress','My progress',CheckCircle2],['chat','Ask textbook',MessageCircle]] as const)
+    : ([['library','My library',Library],['progress','My progress',CheckCircle2],['career','Career prep',Target],['chat','Ask textbook',MessageCircle]] as const)
   const languageNames={en:'English',hi:'हिन्दी',ar:'العربية'}
   return <div className="app-shell"><aside className={open?'sidebar open':'sidebar'}><div className="brand"><span className="brand-mark"><BookOpen/></span>PrepMate</div><button className="close-menu" onClick={()=>setOpen(false)}><XCircle/></button><nav>{nav.map(([id,label,Icon])=><button key={id} className={view===id?'active':''} onClick={()=>{setView(id);setOpen(false)}}><Icon size={19}/>{label}</button>)}</nav><button className={view==='settings'?'sidebar-settings active':'sidebar-settings'} onClick={()=>{setView('settings');setOpen(false)}}><Settings size={19}/>Settings</button></aside><div className="main"><header className="topbar"><button className="menu" onClick={()=>setOpen(true)}><Menu/></button><div className="workspace-controls"><span className="control-chip"><Building2 size={17}/>{profile?.institution||'My institution'}</span><label className="language-chip"><Globe2 size={17}/><select value={language} onChange={e=>setLanguage(e.target.value as Language)} aria-label="Choose language"><option value="en">English</option><option value="hi">हिन्दी</option><option value="ar">العربية</option></select><ChevronDown size={15}/></label></div><div className="account-wrap"><button className="profile-chip profile-button" onClick={()=>setAccountOpen(!accountOpen)}><div className="student-dot">{profile?.name?.[0]||'U'}</div><span><b>{profile?.name||'User'}</b><small>{languageNames[language]} · {profile?.role||'student'}</small></span><ChevronDown size={15}/></button>{accountOpen&&<div className="account-menu"><span>ACCOUNT</span><b>{profile?.email}</b><button onClick={()=>{setView('settings');setAccountOpen(false)}}><Settings size={17}/>Settings</button><button className="danger" onClick={()=>{localStorage.removeItem('prepmate_token');location.reload()}}><LogOut size={17}/>Logout</button></div>}</div></header>{children}</div></div>
 }
@@ -120,6 +121,7 @@ export default function App(){
     {view==='document'&&selected&&<DocumentView doc={selected} onBack={()=>setView('library')} onPractice={()=>setView('practice')}/>}
     {view==='practice'&&selected&&<PracticeView doc={selected} onDone={()=>setView('document')}/>}
     {view==='progress'&&<DashboardView/>}
+    {view==='career'&&<CareerView/>}
     {view==='chat'&&<ChatView documents={documents}/>}
     {view==='copilot'&&['teacher','hod','admin'].includes((profile.role||'').toLowerCase())&&<CopilotView documents={documents}/>}
     {view==='settings'&&<SettingsView profile={profile} language={language} setLanguage={setLanguage} onProfileSaved={refresh}/>}

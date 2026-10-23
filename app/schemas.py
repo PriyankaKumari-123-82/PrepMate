@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -198,3 +198,75 @@ class ArtifactOut(ORMModel):
 class DecisionIn(BaseModel):
     decision: Literal["approved", "changes_requested", "rejected"]
     comment: str | None = Field(default=None, max_length=2000)
+
+
+class ResumeSkill(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    evidence: list[str] = Field(default_factory=list, max_length=10)
+    confidence: float = Field(default=0.5, ge=0, le=1)
+
+
+class ResumeProfile(BaseModel):
+    summary: str = Field(default="", max_length=3000)
+    education: list[str] = Field(default_factory=list, max_length=30)
+    experience: list[str] = Field(default_factory=list, max_length=50)
+    projects: list[str] = Field(default_factory=list, max_length=50)
+    skills: list[ResumeSkill] = Field(default_factory=list, max_length=100)
+    certifications: list[str] = Field(default_factory=list, max_length=30)
+    interests: list[str] = Field(default_factory=list, max_length=30)
+
+
+class ResumeOut(ORMModel):
+    id: int
+    filename: str
+    status: str
+    parsed_profile: dict[str, Any]
+    version: int
+    error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CareerGoalIn(BaseModel):
+    target_role: str = Field(min_length=2, max_length=200)
+    experience_level: Literal["entry", "junior", "mid", "senior", "career_change"]
+    job_description: str | None = Field(default=None, max_length=20000)
+    interests: list[str] = Field(default_factory=list, max_length=20)
+    deadline: date | None = None
+    weekly_hours: int = Field(default=7, ge=1, le=80)
+
+
+class CareerGoalOut(ORMModel):
+    id: int
+    target_role: str
+    experience_level: str
+    job_description: str | None
+    interests: list[str]
+    deadline: date | None
+    weekly_hours: int
+    created_at: datetime
+
+
+class PreparationTaskOut(ORMModel):
+    id: int
+    skill_id: int | None
+    title: str
+    task_type: str
+    priority: float
+    reasons: list[str]
+    due_date: date | None
+    completed: bool
+
+
+class PreparationPlanOut(ORMModel):
+    id: int
+    goal_id: int
+    version: int
+    summary: str
+    status: str
+    created_at: datetime
+    tasks: list[PreparationTaskOut] = Field(default_factory=list)
+
+
+class TaskUpdate(BaseModel):
+    completed: bool

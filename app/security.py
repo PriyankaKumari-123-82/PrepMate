@@ -54,3 +54,9 @@ def require_teacher(membership: Membership = Depends(current_membership)) -> Mem
     if membership.role not in {"teacher", "hod", "admin"}:
         raise HTTPException(403, "Teacher account required")
     return membership
+
+
+def require_student(membership: Membership = Depends(current_membership)) -> Membership:
+    if membership.role != "student":
+        raise HTTPException(403, "Student account required")
+    return membership

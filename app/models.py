@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
@@ -287,3 +287,81 @@ class ProviderCredential(Base):
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Resume(Base):
+    __tablename__ = "resumes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(300))
+    storage_path: Mapped[str] = mapped_column(String(700))
+    raw_text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), default="uploaded", index=True)
+    parsed_profile: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    version: Mapped[int] = mapped_column(default=1)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class CareerGoal(Base):
+    __tablename__ = "career_goals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    target_role: Mapped[str] = mapped_column(String(200))
+    experience_level: Mapped[str] = mapped_column(String(30))
+    job_description: Mapped[str | None] = mapped_column(Text)
+    interests: Mapped[list[str]] = mapped_column(JSON, default=list)
+    deadline: Mapped[date | None] = mapped_column(Date)
+    weekly_hours: Mapped[int] = mapped_column(default=7)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Skill(Base):
+    __tablename__ = "skills"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    canonical_name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    category: Mapped[str] = mapped_column(String(80), default="general")
+    aliases: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
+class StudentSkill(Base):
+    __tablename__ = "student_skills"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id", ondelete="CASCADE"), index=True)
+    resume_id: Mapped[int | None] = mapped_column(ForeignKey("resumes.id", ondelete="SET NULL"), index=True)
+    claimed_level: Mapped[float | None] = mapped_column(Float)
+    assessed_level: Mapped[float | None] = mapped_column(Float)
+    target_level: Mapped[float | None] = mapped_column(Float)
+    confidence: Mapped[float] = mapped_column(Float, default=0.5)
+    evidence: Mapped[list[str]] = mapped_column(JSON, default=list)
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    __table_args__ = (UniqueConstraint("user_id", "skill_id"),)
+
+
+class PreparationPlan(Base):
+    __tablename__ = "preparation_plans"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    goal_id: Mapped[int] = mapped_column(ForeignKey("career_goals.id", ondelete="CASCADE"), index=True)
+    version: Mapped[int] = mapped_column(default=1)
+    summary: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), default="active", index=True)
+    generation_input: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PreparationTask(Base):
+    __tablename__ = "preparation_tasks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("preparation_plans.id", ondelete="CASCADE"), index=True)
+    skill_id: Mapped[int | None] = mapped_column(ForeignKey("skills.id", ondelete="SET NULL"), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    task_type: Mapped[str] = mapped_column(String(40))
+    priority: Mapped[float] = mapped_column(Float)
+    reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    due_date: Mapped[date | None] = mapped_column(Date)
+    completed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

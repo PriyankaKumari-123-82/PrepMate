@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, chat, dashboard, documents, educator, practice, settings
+from app.api import auth, career, chat, dashboard, documents, educator, practice, settings
 from app.config import get_settings
 from app.database import Base, engine
 
@@ -31,6 +31,7 @@ app.include_router(chat.router)
 app.include_router(dashboard.router)
 app.include_router(educator.router)
 app.include_router(settings.router)
+app.include_router(career.router)
 
 
 @app.get("/health")

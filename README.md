@@ -4,6 +4,14 @@ PrepMate turns textbook PDFs into page-grounded study material. Students can upl
 
 The teacher workspace adds a multi-tenant educator copilot. Teachers can generate cited assessments, lesson plans, notes, slide outlines, worksheets, and course plans from uploaded PDFs. Every generation records explicit knowledge, specialist, and review steps; outputs remain drafts until submitted and approved by an HOD or institution admin.
 
+Students also have a private **Career Prep** workspace. It parses resume evidence for review, compares confirmed skills with a target role or job description, and creates an explainable seven-day preparation plan with trackable tasks.
+
+## Live deployment
+
+- Frontend: [https://prepmate-web.priyankamsc24.workers.dev](https://prepmate-web.priyankamsc24.workers.dev)
+- Backend: [https://prepmate-ix72.onrender.com](https://prepmate-ix72.onrender.com)
+- API documentation: [https://prepmate-ix72.onrender.com/docs](https://prepmate-ix72.onrender.com/docs)
+
 ## Requirements
 
 - Docker with Docker Compose (recommended)

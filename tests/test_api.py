@@ -20,3 +20,8 @@ def test_required_api_routes_are_registered():
     assert "put" in paths["/settings/models"]
     assert "post" in paths["/settings/api-keys"]
     assert "delete" in paths["/settings/api-keys/{credential_id}"]
+    assert "post" in paths["/career/resume"]
+    assert "patch" in paths["/career/resume/profile"]
+    assert "post" in paths["/career/goals"]
+    assert "post" in paths["/career/plans/generate"]
+    assert "patch" in paths["/career/tasks/{task_id}"]
